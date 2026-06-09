@@ -38,11 +38,11 @@ npx localtunnel --port 8000        # or: cloudflared tunnel --url http://localho
 
 Open the printed `https://…` URL on your phone.
 
-**Option C — GitHub Pages (no computer needed).** Merging this repo's
-`main` triggers `.github/workflows/pages.yml`, which publishes the app to
-`https://<user>.github.io/fabl_lay/`. Requires GitHub Pages to be available
-for the repo (public repo, or a paid plan for private ones); the site is
-public once deployed.
+**Option C — GitHub Pages (no computer needed).** The app is published at
+<https://dogancanka.github.io/fabl_lay/>. It is served from the `gh-pages`
+branch, which `.github/workflows/pages.yml` re-syncs from `main` on every
+push — so merging to `main` re-deploys automatically. Note the site is
+public.
 
 ## How to use it
 
