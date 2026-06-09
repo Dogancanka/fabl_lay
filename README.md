@@ -20,6 +20,30 @@ npm start          # or: node serve.js [port]
 
 Then open <http://localhost:8000>. (Any static file server works.)
 
+## Test it on your phone
+
+The app is touch-enabled: one finger sketches/drags, two fingers pinch-zoom
+and pan, and on small screens the panel stacks below the canvas.
+
+**Option A — same Wi-Fi (quickest).** Run `npm start` on your computer; it
+prints a `http://<your-lan-ip>:8000` URL — open that in your phone's browser
+(both devices must be on the same network).
+
+**Option B — public tunnel.** If your phone is not on the same network:
+
+```sh
+npm start
+npx localtunnel --port 8000        # or: cloudflared tunnel --url http://localhost:8000
+```
+
+Open the printed `https://…` URL on your phone.
+
+**Option C — GitHub Pages (no computer needed).** Merging this repo's
+`main` triggers `.github/workflows/pages.yml`, which publishes the app to
+`https://<user>.github.io/fabl_lay/`. Requires GitHub Pages to be available
+for the repo (public repo, or a paid plan for private ones); the site is
+public once deployed.
+
 ## How to use it
 
 | Tool | What it does |

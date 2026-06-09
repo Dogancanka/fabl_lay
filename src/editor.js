@@ -15,8 +15,13 @@ export const editor = {
   selection: null,
   drag: null,
   coreDraft: null,     // { a: {x,y}, b: {x,y} } while dragging a new core
+  touch: false,        // last input was a touch pointer (bigger hit targets)
   canvas: null,
 };
+
+// multi-touch tracking for pinch-zoom / two-finger pan
+const pointers = new Map(); // pointerId -> { x, y } (screen px)
+let pinch = null;           // { d0, scale0, w0 } gesture-start reference
 
 export function initEditor(canvas) {
   editor.canvas = canvas;
@@ -24,6 +29,7 @@ export function initEditor(canvas) {
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
   canvas.addEventListener('dblclick', onDoubleClick);
   canvas.addEventListener('wheel', onWheel, { passive: false });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -75,7 +81,7 @@ function snapVertices(excludeEnvelopeIndex = -1) {
 }
 
 function hitTest(w) {
-  const tol = 9 / editor.camera.scale; // 9px in world units
+  const tol = (editor.touch ? 16 : 9) / editor.camera.scale; // px in world units
 
   // entrance marker
   if (state.entrance && dist(w, state.entrance) < tol * 1.4) {
@@ -134,7 +140,25 @@ const snapTo = (v) => Math.round(v / GRID) * GRID;
 // ---------- pointer handlers ----------
 
 function onPointerDown(e) {
-  editor.canvas.setPointerCapture(e.pointerId);
+  try { editor.canvas.setPointerCapture(e.pointerId); } catch { /* synthetic events have no active pointer */ }
+  editor.touch = e.pointerType === 'touch';
+  pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+
+  // second finger down: switch to pinch-zoom / two-finger pan
+  if (pointers.size === 2) {
+    editor.drag = null;
+    editor.coreDraft = null;
+    const [p1, p2] = [...pointers.values()];
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    pinch = {
+      d0: Math.max(20, Math.hypot(p1.x - p2.x, p1.y - p2.y)),
+      scale0: editor.camera.scale,
+      w0: worldFromScreen(mid.x, mid.y), // world point to keep under the fingers
+    };
+    return;
+  }
+  if (pinch) return;
+
   const w = worldFromScreen(e.offsetX, e.offsetY);
 
   if (e.button === 1 || e.button === 2) {
@@ -187,6 +211,21 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+
+  if (pinch) {
+    if (pointers.size >= 2) {
+      const [p1, p2] = [...pointers.values()];
+      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const d = Math.max(20, Math.hypot(p1.x - p2.x, p1.y - p2.y));
+      const { camera, canvas } = editor;
+      camera.scale = Math.max(6, Math.min(220, pinch.scale0 * (d / pinch.d0)));
+      camera.cx = pinch.w0.x - (mid.x - canvas.clientWidth / 2) / camera.scale;
+      camera.cy = pinch.w0.y - (mid.y - canvas.clientHeight / 2) / camera.scale;
+    }
+    return;
+  }
+
   const w = worldFromScreen(e.offsetX, e.offsetY);
   editor.guides = [];
 
@@ -264,7 +303,12 @@ function handleDrag(w, e) {
   geometryChanged();
 }
 
-function onPointerUp() {
+function onPointerUp(e) {
+  pointers.delete(e.pointerId);
+  if (pinch) {
+    if (pointers.size < 2) pinch = null;
+    return;
+  }
   const d = editor.drag;
   editor.drag = null;
   if (d && d.kind === 'core-draft' && editor.coreDraft) {

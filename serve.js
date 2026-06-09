@@ -1,6 +1,7 @@
 // Zero-dependency static file server for local development.
 // Usage: node serve.js [port]
 import http from 'node:http';
+import os from 'node:os';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,4 +44,11 @@ http.createServer(async (req, res) => {
   }
 }).listen(port, () => {
   console.log(`FABL Lay running at http://localhost:${port}`);
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`  on your phone (same Wi-Fi): http://${iface.address}:${port}`);
+      }
+    }
+  }
 });
