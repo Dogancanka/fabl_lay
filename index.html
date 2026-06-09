@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FABL Lay — Generative Floorplan Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">FABL<span>Lay</span></div>
+
+    <div class="toolgroup" id="tools">
+      <button class="tool" data-tool="select" title="Select / edit geometry (V)">Select</button>
+      <button class="tool" data-tool="envelope" title="Sketch building envelope (E)">Envelope</button>
+      <button class="tool" data-tool="core" title="Draw core rectangle (C)">Core</button>
+      <button class="tool" data-tool="entrance" title="Place entrance on envelope edge (N)">Entrance</button>
+    </div>
+
+    <div class="toolgroup">
+      <button class="toggle" id="toggle-graph" title="Show adjacency graph overlay (G)">Graph</button>
+      <button class="toggle" id="toggle-dims" title="Show edge dimensions (D)">Dims</button>
+      <button class="toggle" id="toggle-pause" title="Pause / resume the optimizer (Space)">Pause</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="stat"><label>Score</label><strong id="stat-score">–</strong></div>
+    <div class="stat"><label>Generation</label><strong id="stat-gen">0</strong></div>
+    <div class="stat"><label>Envelope</label><strong id="stat-area">–</strong></div>
+  </header>
+
+  <main id="layout">
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="hint"></div>
+    </div>
+
+    <aside id="panel">
+      <section class="panel-section" id="sec-program">
+        <h2>Program <button id="btn-add-room" class="mini" title="Add a room">+ room</button></h2>
+        <div id="room-list"></div>
+        <div class="program-summary" id="program-summary"></div>
+      </section>
+
+      <section class="panel-section" id="sec-adjacency">
+        <h2>Adjacency rules</h2>
+        <p class="help">Click cells to cycle: <span class="adj-none">·</span> neutral →
+          <span class="adj-req">✓</span> required → <span class="adj-avoid">✕</span> avoid</p>
+        <div id="adj-matrix-wrap"><table id="adj-matrix"></table></div>
+      </section>
+
+      <section class="panel-section" id="sec-weights">
+        <h2>Optimization weights</h2>
+        <div id="weight-sliders"></div>
+      </section>
+
+      <section class="panel-section" id="sec-alternatives">
+        <h2>Alternatives
+          <button id="btn-evolve" class="mini" title="Breed a new population from the selected alternative">Evolve selected</button>
+          <button id="btn-reset" class="mini" title="Restart optimization from scratch">Restart</button>
+        </h2>
+        <p class="help">Ranked live by the optimizer. Click to inspect, tick two to compare.</p>
+        <div id="alt-grid"></div>
+        <button id="btn-compare" class="wide" disabled>Compare selected pair</button>
+      </section>
+    </aside>
+  </main>
+
+  <div id="compare-modal" class="hidden">
+    <div class="compare-card">
+      <header><h2>Compare alternatives</h2><button id="compare-close">✕</button></header>
+      <div class="compare-body">
+        <div class="compare-col"><canvas id="cmp-a" width="420" height="340"></canvas><div id="cmp-a-info"></div></div>
+        <div class="compare-col"><canvas id="cmp-b" width="420" height="340"></canvas><div id="cmp-b-info"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
