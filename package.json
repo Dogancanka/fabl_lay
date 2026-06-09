@@ -1,0 +1,11 @@
+{
+  "name": "fabl-lay",
+  "version": "0.1.0",
+  "description": "AI-powered generative floorplan studio: sketch an envelope and core, get continuously optimized, ranked layout alternatives.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node test/engine-test.js"
+  },
+  "license": "MIT"
+}

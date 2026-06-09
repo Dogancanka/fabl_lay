@@ -1,0 +1,65 @@
+// Central app state with a tiny event bus and geometry undo history.
+import { defaultProgram, DEFAULT_WEIGHTS } from './program.js';
+
+class Emitter {
+  constructor() { this.listeners = new Map(); }
+  on(event, fn) {
+    if (!this.listeners.has(event)) this.listeners.set(event, []);
+    this.listeners.get(event).push(fn);
+  }
+  emit(event, payload) {
+    for (const fn of this.listeners.get(event) || []) fn(payload);
+  }
+}
+
+export const state = {
+  // sketch geometry (meters, world space)
+  envelope: [],          // [{x, y}] polygon
+  cores: [],             // [{x, y, w, h}]
+  entrance: null,        // {x, y} on an envelope edge
+
+  // program + optimization
+  program: defaultProgram(),
+  weights: { ...DEFAULT_WEIGHTS },
+  cellSize: 0.5,
+
+  // solver results
+  grid: null,            // last grid meta from the worker
+  solutions: [],         // ranked alternatives from the worker
+  generation: 0,
+  selectedAlt: 0,
+  compareSet: new Set(), // indices ticked for comparison
+  paused: false,
+
+  // view options
+  showGraph: false,
+  showDims: true,
+  tool: 'select',
+
+  events: new Emitter(),
+  _undo: [],
+};
+
+export function snapshotGeometry() {
+  state._undo.push(JSON.stringify({
+    envelope: state.envelope,
+    cores: state.cores,
+    entrance: state.entrance,
+  }));
+  if (state._undo.length > 80) state._undo.shift();
+}
+
+export function undoGeometry() {
+  const snap = state._undo.pop();
+  if (!snap) return false;
+  const data = JSON.parse(snap);
+  state.envelope = data.envelope;
+  state.cores = data.cores;
+  state.entrance = data.entrance;
+  state.events.emit('geometry');
+  return true;
+}
+
+export function geometryChanged() {
+  state.events.emit('geometry');
+}
