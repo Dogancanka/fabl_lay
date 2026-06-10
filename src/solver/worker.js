@@ -18,18 +18,27 @@ const POP_SIZE = 48;
 const ELITES = 6;
 const TOURNAMENT = 3;
 const CROSSOVER_RATE = 0.7;
-const TOP_K = 6;
 const DISTINCT_LABEL_DIFF = 0.12;
 const POST_INTERVAL_MS = 160;
+const MAX_GENERATIONS = 450;     // budget per run
+const PLATEAU_GENERATIONS = 90;  // stop early when converged
 
 let rng = makeRng(20260609);
-let ctx = null;          // { grid, rooms, adjacency, capacities, circulationIndex, hasCore, hasEntrance, entrance }
+let ctx = null;          // { grid, rooms, adjacency, capacities, circulationIndex, hasCore, hasEntrance, entrance, catalog }
 let weights = null;
 let population = [];     // [{ genome, labels, sizes, score, breakdown, connections, centroids, areas }]
 let generation = 0;
+let altCount = 6;        // how many ranked alternatives to produce
 let paused = false;
+let done = false;        // budget exhausted; waits for generate/geometry changes
 let ticking = false;
 let lastPost = 0;
+let budget = { total: 0, sinceImprove: 0, best: -1 };
+
+function resetBudget() {
+  budget = { total: 0, sinceImprove: 0, best: -1 };
+  done = false;
+}
 
 self.onmessage = (e) => {
   const msg = e.data;
@@ -40,11 +49,16 @@ self.onmessage = (e) => {
       if (ctx) reevaluateAll();
       break;
     case 'focus': handleFocus(msg.genome); break;
-    case 'restart':
+    case 'generate':
+      // fresh batch: keep a quarter of the population for continuity,
+      // re-randomize the rest for diversity, then run a full budget
       if (ctx) {
-        population = [];
-        generation = 0;
+        if (msg.count) altCount = msg.count;
+        const keep = Math.max(ELITES, POP_SIZE >> 2);
+        population.length = Math.min(population.length, keep);
         seedPopulation();
+        resetBudget();
+        paused = false;
         startLoop();
       }
       break;
@@ -55,6 +69,8 @@ self.onmessage = (e) => {
 
 function handleSetup(msg) {
   weights = msg.weights;
+  if (msg.altCount) altCount = msg.altCount;
+  resetBudget();
   const { envelope, cores, entrance, program, cellSize } = msg;
 
   if (!envelope || envelope.length < 3 || program.rooms.length === 0) {
@@ -141,6 +157,8 @@ function handleFocus(genome) {
   }
   for (const ind of population) evaluateIndividual(ind);
   sortPopulation();
+  resetBudget();
+  paused = false;
   startLoop();
   postSolutions(true);
 }
@@ -187,9 +205,25 @@ function startLoop() {
 }
 
 function tick() {
-  if (!ctx || paused) { ticking = false; return; }
+  if (!ctx || paused || done) { ticking = false; return; }
   stepGeneration();
   generation++;
+  budget.total++;
+
+  const best = population[0]?.score ?? -1;
+  if (best > budget.best + 0.05) {
+    budget.best = best;
+    budget.sinceImprove = 0;
+  } else {
+    budget.sinceImprove++;
+  }
+  if (budget.total >= MAX_GENERATIONS || budget.sinceImprove >= PLATEAU_GENERATIONS) {
+    done = true;
+    ticking = false;
+    postSolutions(true);
+    return;
+  }
+
   const now = Date.now();
   if (now - lastPost >= POST_INTERVAL_MS) postSolutions();
   setTimeout(tick, 0);
@@ -240,13 +274,13 @@ function postSolutions(force = false) {
   // Pick the top-K solutions that are visually distinct from each other.
   const picked = [];
   for (const ind of population) {
-    if (picked.length >= TOP_K) break;
+    if (picked.length >= altCount) break;
     if (picked.every((p) => labelDifference(p.labels, ind.labels) > DISTINCT_LABEL_DIFF)) {
       picked.push(ind);
     }
   }
   for (const ind of population) {
-    if (picked.length >= TOP_K) break;
+    if (picked.length >= altCount) break;
     if (!picked.includes(ind)) picked.push(ind);
   }
 
@@ -281,6 +315,7 @@ function postSolutions(force = false) {
   self.postMessage({
     type: 'solutions',
     generation,
+    phase: done ? 'done' : 'running',
     grid: { W: g.W, H: g.H, ox: g.ox, oy: g.oy, cellSize: g.cellSize, kinds },
     solutions,
   }, transfers);

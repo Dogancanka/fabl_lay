@@ -127,19 +127,37 @@ function clampT(wall, point, width) {
 }
 
 function buildDoor(wall, t, width, roomsPair, swingRoom, kind) {
-  // clearance: a width×width square on the swing side of the wall
+  const door = { wall, t, width, rooms: roomsPair, swingRoom, hinge: 0, kind };
+  door.clearance = doorClearance(door);
+  return door;
+}
+
+/** Clearance: a width×width square on the swing side of the wall. */
+export function doorClearance(door) {
+  const { wall, t, width, swingRoom } = door;
   const half = width / 2;
-  let clearance;
   if (wall.horizontal) {
     const cx = wall.x1 + t;
     const swingUp = wall.sideA === swingRoom; // sideA is above (smaller y)
-    clearance = { x: cx - half, y: swingUp ? wall.y1 - width : wall.y1, w: width, h: width };
-  } else {
-    const cy = wall.y1 + t;
-    const swingLeft = wall.sideA === swingRoom;
-    clearance = { x: swingLeft ? wall.x1 - width : wall.x1, y: cy - half, w: width, h: width };
+    return { x: cx - half, y: swingUp ? wall.y1 - width : wall.y1, w: width, h: width };
   }
-  return { wall, t, width, rooms: roomsPair, swingRoom, hinge: 0, kind, clearance };
+  const cy = wall.y1 + t;
+  const swingLeft = wall.sideA === swingRoom;
+  return { x: swingLeft ? wall.x1 - width : wall.x1, y: cy - half, w: width, h: width };
+}
+
+/** Slide an opening along its wall (manual edit), keeping end margins. */
+export function setOpeningT(opening, t) {
+  const margin = opening.width / 2 + DOOR_MARGIN;
+  opening.t = Math.max(margin, Math.min(opening.wall.len - margin, t));
+  if (opening.clearance) opening.clearance = doorClearance(opening);
+}
+
+/** Flip which side of the wall the door swings into (manual edit). */
+export function flipDoorSwing(door) {
+  const [a, b] = door.rooms;
+  door.swingRoom = door.swingRoom === b ? a : b;
+  door.clearance = doorClearance(door);
 }
 
 /**

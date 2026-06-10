@@ -27,6 +27,8 @@ export const state = {
   grid: null,            // last grid meta from the worker
   solutions: [],         // ranked alternatives from the worker
   generation: 0,
+  phase: 'running',      // 'running' | 'done' (budgeted generation)
+  altCount: 6,           // how many alternatives to generate
   selectedAlt: 0,
   compareSet: new Set(), // indices ticked for comparison
   paused: false,
