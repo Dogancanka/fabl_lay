@@ -110,49 +110,6 @@ function drawPlanEditOverlay(ctx, sol) {
   }
 }
 
-function drawPlanEditOverlay(ctx, sol) {
-  const target = planEditor.drag || planEditor.hover;
-  if (!target) return;
-  const dragging = !!planEditor.drag;
-
-  if (target.kind === 'furniture') {
-    const item = sol.furniture[target.index];
-    if (!item) return;
-    const a = screenFromWorld(item.rect.x, item.rect.y);
-    const b = screenFromWorld(item.rect.x + item.rect.w, item.rect.y + item.rect.h);
-    ctx.strokeStyle = dragging && planEditor.drag.valid === false ? '#e5534b' : COLOR_GUIDE;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(a.x - 2, a.y - 2, b.x - a.x + 4, b.y - a.y + 4);
-  } else if (target.kind === 'door' || target.kind === 'window') {
-    const o = (target.kind === 'door' ? sol.doors : sol.windows)[target.index];
-    if (!o) return;
-    const cx = o.wall.horizontal ? o.wall.x1 + o.t : o.wall.x1;
-    const cy = o.wall.horizontal ? o.wall.y1 : o.wall.y1 + o.t;
-    const p = screenFromWorld(cx, cy);
-    ctx.strokeStyle = COLOR_GUIDE;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(10, o.width * editor.camera.scale * 0.6), 0, Math.PI * 2);
-    ctx.stroke();
-  } else if (target.kind === 'wall') {
-    const w = sol.walls[target.index];
-    if (!w) return;
-    const off = dragging ? (planEditor.drag.offset || 0) : 0;
-    const dx = w.horizontal ? 0 : off;
-    const dy = w.horizontal ? off : 0;
-    const a = screenFromWorld(w.x1 + dx, w.y1 + dy);
-    const b = screenFromWorld(w.x2 + dx, w.y2 + dy);
-    ctx.strokeStyle = COLOR_GUIDE;
-    ctx.lineWidth = 4;
-    if (dragging && off !== 0) ctx.setLineDash([7, 5]);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-}
-
 function drawRoomLabels(ctx, sol) {
   const rooms = state.program.rooms;
   ctx.textAlign = 'center';
