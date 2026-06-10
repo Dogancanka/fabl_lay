@@ -2,6 +2,7 @@
 // entrance), and direct manipulation of existing geometry with snapping.
 import { state, snapshotGeometry, geometryChanged } from './state.js';
 import { snapPoint, dist, distToSegment, closestPointOnSegment, polygonBounds } from './geometry.js';
+import { planEditor } from './plan-editor.js';
 
 const GRID = 0.5;            // snap grid in meters
 const CLOSE_RADIUS = 0.6;    // click distance to close the polygon (m)
@@ -167,6 +168,13 @@ function onPointerDown(e) {
   }
 
   switch (state.tool) {
+    case 'plan':
+      // element hits are handled by the plan editor's own listener;
+      // empty space pans
+      if (!planEditor.hover) {
+        editor.drag = { kind: 'pan', sx: e.offsetX, sy: e.offsetY, cx: editor.camera.cx, cy: editor.camera.cy };
+      }
+      break;
     case 'envelope': envelopeClick(w); break;
     case 'core':
       editor.coreDraft = { a: { x: snapTo(w.x), y: snapTo(w.y) }, b: { x: snapTo(w.x), y: snapTo(w.y) } };
@@ -327,6 +335,7 @@ function onPointerUp(e) {
 }
 
 function onDoubleClick(e) {
+  if (state.tool === 'plan') return; // plan editor handles its own dblclick
   const w = worldFromScreen(e.offsetX, e.offsetY);
   if (state.tool === 'envelope') {
     finishEnvelope();
@@ -405,6 +414,7 @@ function onKeyDown(e) {
       deleteSelection();
       break;
     case 'v': case 'V': setTool('select'); break;
+    case 'p': case 'P': setTool('plan'); break;
     case 'e': case 'E': setTool('envelope'); break;
     case 'c': case 'C': setTool('core'); break;
     case 'n': case 'N': setTool('entrance'); break;

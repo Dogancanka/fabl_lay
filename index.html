@@ -21,6 +21,7 @@
       <button class="tool" data-tool="envelope" title="Sketch building envelope (E)">Envelope</button>
       <button class="tool" data-tool="core" title="Draw core rectangle (C)">Core</button>
       <button class="tool" data-tool="entrance" title="Place entrance on envelope edge (N)">Entrance</button>
+      <button class="tool" data-tool="plan" title="Move walls, doors, windows and furniture in the generated plan (P)">Plan</button>
     </div>
 
     <div class="toolgroup" id="views">
@@ -43,6 +44,38 @@
   </header>
 
   <main id="layout">
+    <aside id="panel-left">
+      <section class="panel-section" id="sec-generate">
+        <h2>Generate</h2>
+        <div class="gen-controls">
+          <label for="alt-count">Plans</label>
+          <select id="alt-count">
+            <option>4</option>
+            <option selected>6</option>
+            <option>8</option>
+            <option>10</option>
+            <option>12</option>
+          </select>
+          <button id="btn-play" class="primary" title="Generate a fresh batch of alternatives">▶ Generate</button>
+        </div>
+        <div id="gen-status" class="help"></div>
+      </section>
+
+      <section class="panel-section" id="sec-alternatives">
+        <h2>Alternatives
+          <button id="btn-evolve" class="mini" title="Breed a new population from the selected alternative">Evolve selected</button>
+        </h2>
+        <p class="help">Ranked by combined score. Click to inspect, tick two to compare.</p>
+        <div id="alt-grid"></div>
+        <button id="btn-compare" class="wide" disabled>Compare selected pair</button>
+      </section>
+
+      <section class="panel-section" id="sec-issues">
+        <h2>Plan check</h2>
+        <ul id="issue-list"></ul>
+      </section>
+    </aside>
+
     <div id="canvas-wrap">
       <canvas id="canvas"></canvas>
       <canvas id="canvas3d" class="hidden"></canvas>
@@ -66,21 +99,6 @@
       <section class="panel-section" id="sec-weights">
         <h2>Optimization weights</h2>
         <div id="weight-sliders"></div>
-      </section>
-
-      <section class="panel-section" id="sec-alternatives">
-        <h2>Alternatives
-          <button id="btn-evolve" class="mini" title="Breed a new population from the selected alternative">Evolve selected</button>
-          <button id="btn-reset" class="mini" title="Restart optimization from scratch">Restart</button>
-        </h2>
-        <p class="help">Ranked live by the optimizer. Click to inspect, tick two to compare.</p>
-        <div id="alt-grid"></div>
-        <button id="btn-compare" class="wide" disabled>Compare selected pair</button>
-      </section>
-
-      <section class="panel-section" id="sec-issues">
-        <h2>Plan check</h2>
-        <ul id="issue-list"></ul>
       </section>
     </aside>
 

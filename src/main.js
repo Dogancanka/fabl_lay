@@ -4,7 +4,8 @@ import { initEditor, fitView } from './editor.js';
 import { renderScene } from './render.js';
 import { setSymbolCatalog } from './render-plan.js';
 import { initUI, initPages, updateAlternatives, updateStats } from './ui.js';
-import { initView3D, renderView3D } from './view3d.js';
+import { initView3D, renderView3D, invalidateScene } from './view3d.js';
+import { initPlanEditor } from './plan-editor.js';
 import { buildCatalog } from './model/families.js';
 import { listCustomFamilies } from './store.js';
 
@@ -31,6 +32,14 @@ fitView();
 let catalog = buildCatalog(state.customFamilies);
 setSymbolCatalog(catalog);
 
+initPlanEditor(canvas, {
+  getCatalog: () => catalog,
+  onPlanEdited: () => {
+    invalidateScene();
+    updateAlternatives();
+  },
+});
+
 // ---------- solver worker ----------
 
 const worker = new Worker(new URL('./solver/worker.js', import.meta.url), { type: 'module' });
@@ -45,6 +54,7 @@ function pushSetup() {
     weights: state.weights,
     families: state.customFamilies,
     cellSize: state.cellSize,
+    altCount: state.altCount,
   });
 }
 
@@ -57,9 +67,12 @@ function pushSetupDebounced() {
 worker.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === 'solutions') {
+    // a trailing post must not clobber manual edits made in the plan tool
+    if (state.tool === 'plan' && state.solutions.some((s) => s.edited)) return;
     state.grid = msg.grid;
     state.solutions = msg.solutions;
     state.generation = msg.generation;
+    state.phase = msg.phase || 'running';
     updateAlternatives();
   } else if (msg.type === 'idle') {
     state.grid = null;
@@ -80,7 +93,7 @@ state.events.on('families', () => {
 });
 state.events.on('weights', () => worker.postMessage({ type: 'weights', weights: state.weights }));
 state.events.on('evolve', (genome) => worker.postMessage({ type: 'focus', genome }));
-state.events.on('restart', () => worker.postMessage({ type: 'restart' }));
+state.events.on('generate', (count) => worker.postMessage({ type: 'generate', count }));
 state.events.on('pause', () => worker.postMessage({ type: 'pause' }));
 state.events.on('resume', () => worker.postMessage({ type: 'resume' }));
 

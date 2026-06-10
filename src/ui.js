@@ -16,6 +16,7 @@ const HINTS = {
   envelope: 'Click to place corners · click the first point (or press Enter) to close the envelope · Esc cancels',
   core: 'Drag to draw a core rectangle (stairs / elevator / shafts)',
   entrance: 'Click on an envelope edge to place the entrance — the hall will anchor to it',
+  plan: 'Drag interior walls to move room boundaries · slide doors/windows along walls · double-click a door to flip its swing · drag furniture, double-click to rotate',
 };
 
 const altCards = [];
@@ -30,6 +31,8 @@ export function initUI() {
       btn.classList.toggle('active', btn.dataset.tool === tool);
     });
     $('#hint').textContent = HINTS[tool] || '';
+    // manual plan edits need a stable plan: pause the optimizer
+    if (tool === 'plan' && !state.paused) state.events.emit('toggle', 'pause');
   });
 
   // --- toggles
@@ -51,6 +54,7 @@ export function initUI() {
     toggles.dims.classList.toggle('active', state.showDims);
     toggles.furniture.classList.toggle('active', state.showFurniture);
     toggles.pause.classList.toggle('active', state.paused);
+    updateStats();
   };
   for (const name of Object.keys(toggles)) {
     toggles[name].addEventListener('click', () => applyToggle(name));
@@ -93,9 +97,23 @@ export function initUI() {
 
   $('#btn-evolve').addEventListener('click', () => {
     const sol = state.solutions[state.selectedAlt];
-    if (sol) state.events.emit('evolve', sol.genome);
+    if (!sol) return;
+    state.solutions.forEach((s) => { delete s.edited; });
+    if (state.paused) state.events.emit('toggle', 'pause');
+    state.events.emit('evolve', sol.genome);
   });
-  $('#btn-reset').addEventListener('click', () => state.events.emit('restart'));
+  $('#btn-play').addEventListener('click', () => {
+    state.altCount = parseInt($('#alt-count').value, 10);
+    state.solutions.forEach((s) => { delete s.edited; }); // fresh batch discards edits
+    buildAltCards();
+    if (state.paused) state.events.emit('toggle', 'pause'); // resume visual + worker
+    state.events.emit('generate', state.altCount);
+  });
+  $('#alt-count').addEventListener('change', () => {
+    state.altCount = parseInt($('#alt-count').value, 10);
+    buildAltCards();
+    state.events.emit('generate', state.altCount);
+  });
   $('#btn-compare').addEventListener('click', openCompare);
   $('#compare-close').addEventListener('click', () => $('#compare-modal').classList.add('hidden'));
   $('#compare-modal').addEventListener('click', (e) => {
@@ -288,7 +306,10 @@ function renderWeights() {
 function buildAltCards() {
   const grid = $('#alt-grid');
   grid.innerHTML = '';
-  for (let i = 0; i < 6; i++) {
+  altCards.length = 0;
+  state.compareSet.clear();
+  $('#btn-compare').disabled = true;
+  for (let i = 0; i < (state.altCount || 6); i++) {
     const card = document.createElement('div');
     card.className = 'alt-card';
     card.style.display = 'none';
@@ -296,6 +317,10 @@ function buildAltCards() {
     const badge = document.createElement('div');
     badge.className = 'rank-badge';
     badge.textContent = `#${i + 1}`;
+
+    const edited = document.createElement('div');
+    edited.className = 'edited-tag hidden';
+    edited.textContent = 'edited';
 
     const canvas = document.createElement('canvas');
     canvas.width = 150;
@@ -324,7 +349,7 @@ function buildAltCards() {
     });
     meta.append(score, check);
 
-    card.append(badge, canvas, meta);
+    card.append(badge, edited, canvas, meta);
     card.addEventListener('click', () => {
       state.selectedAlt = i;
       refreshAltSelection();
@@ -332,7 +357,7 @@ function buildAltCards() {
       updateStats();
     });
     grid.appendChild(card);
-    altCards.push({ card, canvas, score, check });
+    altCards.push({ card, canvas, score, check, edited });
   }
 }
 
@@ -353,6 +378,7 @@ export function updateAlternatives() {
     }
     slot.card.style.display = '';
     slot.score.textContent = sol.score.toFixed(1);
+    slot.edited.classList.toggle('hidden', !sol.edited);
     renderSolutionToCanvas(slot.canvas, sol, state.grid, rooms);
   }
   if (state.selectedAlt >= state.solutions.length) state.selectedAlt = 0;
@@ -387,6 +413,20 @@ export function updateStats() {
   $('#stat-gen').textContent = String(state.generation);
   $('#stat-area').textContent = state.envelope.length >= 3
     ? `${polygonArea(state.envelope).toFixed(0)} m²` : '–';
+  const status = $('#gen-status');
+  if (state.solutions.length === 0) {
+    status.textContent = 'Sketch an envelope to generate plans.';
+    status.classList.remove('done');
+  } else if (state.paused) {
+    status.textContent = `Paused at generation ${state.generation}.`;
+    status.classList.remove('done');
+  } else if (state.phase === 'done') {
+    status.textContent = `✓ ${state.solutions.length} alternatives ready (${state.generation} generations)`;
+    status.classList.add('done');
+  } else {
+    status.textContent = `Generating… generation ${state.generation}`;
+    status.classList.remove('done');
+  }
   updateProgramSummary();
 }
 
