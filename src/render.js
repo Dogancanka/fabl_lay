@@ -34,10 +34,10 @@ export function renderScene(canvas) {
 
   drawCores(ctx);
   drawEnvelope(ctx, !sol);
-  if (state.showDims) drawDimensions(ctx);
+  if (state.layers.dims) drawDimensions(ctx);
   if (sol && state.tool === 'plan') drawPlanEditOverlay(ctx, sol);
-  if (sol && state.grid) drawRoomLabels(ctx, sol);
-  if (state.showGraph && sol) drawGraph(ctx, sol);
+  if (sol && state.grid && state.layers.labels) drawRoomLabels(ctx, sol);
+  if (state.layers.graph && sol) drawGraph(ctx, sol);
   drawEntrance(ctx);
   drawSketch(ctx);
   drawGuides(ctx);
@@ -64,7 +64,7 @@ function drawBackgroundGrid(ctx, wpx, hpx) {
 function drawLayout(ctx, sol, grid) {
   drawPlan(ctx, sol, grid, state.program.rooms,
     (x, y) => screenFromWorld(x, y), editor.camera.scale,
-    { furniture: state.showFurniture });
+    { ...state.layers, hiddenFamilies: state.hiddenFamilies });
 }
 
 function drawPlanEditOverlay(ctx, sol) {

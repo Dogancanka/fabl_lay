@@ -1,7 +1,7 @@
 // DOM panels: program editor, adjacency matrix, weight sliders, ranked
 // alternatives, compare modal, top-bar tools & stats.
 import { state } from './state.js';
-import { makeRoom, nextColor, pairKey, WEIGHT_LABELS, ROOM_TYPES, ensureRoomIdsAbove } from './program.js';
+import { makeRoom, nextColor, pairKey, WEIGHT_LABELS, ROOM_TYPES, ensureRoomIdsAbove, defaultProgram } from './program.js';
 import { polygonArea } from './geometry.js';
 import { renderSolutionToCanvas } from './render.js';
 import { setTool, fitView } from './editor.js';
@@ -35,32 +35,24 @@ export function initUI() {
     if (tool === 'plan' && !state.paused) state.events.emit('toggle', 'pause');
   });
 
-  // --- toggles
-  const toggles = {
-    graph: $('#toggle-graph'),
-    dims: $('#toggle-dims'),
-    furniture: $('#toggle-furniture'),
-    pause: $('#toggle-pause'),
-  };
+  // --- toggles (keyboard shortcuts route layer flags here too)
+  const pauseBtn = $('#toggle-pause');
   const applyToggle = (name) => {
-    if (name === 'graph') state.showGraph = !state.showGraph;
-    if (name === 'dims') state.showDims = !state.showDims;
-    if (name === 'furniture') state.showFurniture = !state.showFurniture;
     if (name === 'pause') {
       state.paused = !state.paused;
       state.events.emit(state.paused ? 'pause' : 'resume');
+      pauseBtn.classList.toggle('active', state.paused);
+      updateStats();
+      return;
     }
-    toggles.graph.classList.toggle('active', state.showGraph);
-    toggles.dims.classList.toggle('active', state.showDims);
-    toggles.furniture.classList.toggle('active', state.showFurniture);
-    toggles.pause.classList.toggle('active', state.paused);
-    updateStats();
+    if (name in state.layers) {
+      state.layers[name] = !state.layers[name];
+      state.events.emit('layers');
+      renderLayersPanel();
+    }
   };
-  for (const name of Object.keys(toggles)) {
-    toggles[name].addEventListener('click', () => applyToggle(name));
-  }
+  pauseBtn.addEventListener('click', () => applyToggle('pause'));
   state.events.on('toggle', applyToggle);
-  toggles.dims.classList.toggle('active', state.showDims);
 
   // --- pages (Projects | Plans | Objects)
   document.querySelectorAll('#nav .nav-btn').forEach((btn) => {
@@ -84,6 +76,7 @@ export function initUI() {
   renderRoomList();
   renderAdjMatrix();
   renderWeights();
+  renderLayersPanel();
   buildAltCards();
 
   $('#btn-add-room').addEventListener('click', () => {
@@ -301,6 +294,95 @@ function renderWeights() {
   }
 }
 
+// ---------- layers ----------
+
+const LAYER_LABELS = {
+  rooms: 'Rooms (floor colors)',
+  walls: 'Walls',
+  doors: 'Doors',
+  windows: 'Windows',
+  furniture: 'Furniture',
+  labels: 'Room labels',
+  dims: 'Dimensions',
+  graph: 'Adjacency graph',
+};
+
+let lastFamilyKey = '';
+
+function renderLayersPanel() {
+  const tree = $('#layer-tree');
+  tree.innerHTML = '';
+
+  const row = (key, label, { indent = 0, checked, disabled = false, onChange } = {}) => {
+    const div = document.createElement('label');
+    div.className = 'layer-row';
+    div.style.paddingLeft = `${indent * 18}px`;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    cb.disabled = disabled;
+    cb.addEventListener('change', onChange);
+    const span = document.createElement('span');
+    span.textContent = label;
+    div.append(cb, span);
+    tree.appendChild(div);
+    return cb;
+  };
+
+  const layerRow = (key, indent = 0, disabled = false) =>
+    row(key, LAYER_LABELS[key], {
+      indent,
+      checked: state.layers[key],
+      disabled,
+      onChange: () => {
+        state.layers[key] = !state.layers[key];
+        state.events.emit('layers');
+        renderLayersPanel();
+      },
+    });
+
+  layerRow('rooms');
+  layerRow('walls');
+  layerRow('doors', 1, !state.layers.walls);
+  layerRow('windows', 1, !state.layers.walls);
+  layerRow('furniture');
+
+  // per-family children, grouped from the selected solution
+  const sol = state.solutions[state.selectedAlt];
+  if (sol && sol.furniture) {
+    const counts = new Map();
+    for (const f of sol.furniture) counts.set(f.familyId, (counts.get(f.familyId) || 0) + 1);
+    const catalogNames = new Map(
+      [...DEFAULT_FAMILIES, ...state.customFamilies].map((f) => [f.id, f.name]));
+    for (const [id, n] of [...counts.entries()].sort()) {
+      row(id, `${catalogNames.get(id) || id}${n > 1 ? ` ×${n}` : ''}`, {
+        indent: 1,
+        checked: !state.hiddenFamilies.has(id),
+        disabled: !state.layers.furniture,
+        onChange: () => {
+          if (state.hiddenFamilies.has(id)) state.hiddenFamilies.delete(id);
+          else state.hiddenFamilies.add(id);
+          state.events.emit('layers');
+        },
+      });
+    }
+  }
+
+  layerRow('labels');
+  layerRow('dims');
+  layerRow('graph');
+}
+
+/** Rebuild the layers tree when the furniture family mix changes. */
+function refreshLayersIfNeeded() {
+  const sol = state.solutions[state.selectedAlt];
+  const key = sol?.furniture ? [...new Set(sol.furniture.map((f) => f.familyId))].sort().join(',') : '';
+  if (key !== lastFamilyKey) {
+    lastFamilyKey = key;
+    renderLayersPanel();
+  }
+}
+
 // ---------- alternatives ----------
 
 function buildAltCards() {
@@ -385,6 +467,7 @@ export function updateAlternatives() {
   refreshAltSelection();
   updateStats();
   updateIssues();
+  refreshLayersIfNeeded();
 }
 
 function updateIssues() {
@@ -463,6 +546,22 @@ function showPage(page) {
 }
 
 export function initPages() {
+  $('#btn-new-project').addEventListener('click', () => {
+    if (!window.confirm('Start a new empty project? Unsaved changes to the current plan are discarded.')) return;
+    state.envelope = [];
+    state.cores = [];
+    state.entrance = null;
+    state.program = defaultProgram();
+    state.solutions = [];
+    state.compareSet.clear();
+    renderRoomList();
+    renderAdjMatrix();
+    showPage('plans');
+    setTool('envelope');
+    state.events.emit('program');
+    state.events.emit('geometry');
+  });
+
   $('#btn-save-project').addEventListener('click', () => {
     const name = window.prompt('Project name', `Plan ${new Date().toLocaleDateString()}`);
     if (!name) return;

@@ -30,9 +30,6 @@
     </div>
 
     <div class="toolgroup">
-      <button class="toggle" id="toggle-graph" title="Show adjacency graph overlay (G)">Graph</button>
-      <button class="toggle" id="toggle-dims" title="Show edge dimensions (D)">Dims</button>
-      <button class="toggle active" id="toggle-furniture" title="Show furniture (F)">Furn</button>
       <button class="toggle" id="toggle-pause" title="Pause / resume the optimizer (Space)">Pause</button>
     </div>
 
@@ -59,6 +56,11 @@
           <button id="btn-play" class="primary" title="Generate a fresh batch of alternatives">▶ Generate</button>
         </div>
         <div id="gen-status" class="help"></div>
+      </section>
+
+      <section class="panel-section" id="sec-layers">
+        <h2>Layers</h2>
+        <div id="layer-tree"></div>
       </section>
 
       <section class="panel-section" id="sec-alternatives">
@@ -106,7 +108,8 @@
       <div class="page-inner">
         <header class="page-head">
           <h1>Projects</h1>
-          <button id="btn-save-project" class="primary">Save current plan as project</button>
+          <button id="btn-new-project" class="primary">+ New project</button>
+          <button id="btn-save-project">Save current plan as project</button>
         </header>
         <div id="project-grid"></div>
       </div>

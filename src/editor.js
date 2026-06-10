@@ -420,6 +420,7 @@ function onKeyDown(e) {
     case 'n': case 'N': setTool('entrance'); break;
     case 'g': case 'G': state.events.emit('toggle', 'graph'); break;
     case 'd': case 'D': state.events.emit('toggle', 'dims'); break;
+    case 'f': case 'F': state.events.emit('toggle', 'furniture'); break;
     case ' ':
       e.preventDefault();
       state.events.emit('toggle', 'pause');
