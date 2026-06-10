@@ -34,6 +34,10 @@ export const state = {
   // view options
   showGraph: false,
   showDims: true,
+  showFurniture: true,
+  view: '2d',            // '2d' | '3d'
+  page: 'plans',         // 'projects' | 'plans' | 'objects'
+  customFamilies: [],    // user-imported families (JSON)
   tool: 'select',
 
   events: new Emitter(),

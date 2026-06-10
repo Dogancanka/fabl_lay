@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node serve.js",
-    "test": "node test/engine-test.js"
+    "test": "node test/engine-test.js && node test/synthesis-test.js"
   },
   "license": "MIT"
 }

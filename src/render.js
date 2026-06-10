@@ -5,6 +5,7 @@ import { state } from './state.js';
 import { editor, screenFromWorld } from './editor.js';
 import { dist } from './geometry.js';
 import { pairKey } from './program.js';
+import { drawPlan } from './render-plan.js';
 
 const COLOR_BG = '#101216';
 const COLOR_GRID = 'rgba(255,255,255,0.045)';
@@ -59,50 +60,9 @@ function drawBackgroundGrid(ctx, wpx, hpx) {
 // ---------- generated layout ----------
 
 function drawLayout(ctx, sol, grid) {
-  const rooms = state.program.rooms;
-  const { W, H, ox, oy, cellSize } = grid;
-  const s = editor.camera.scale * cellSize;
-  const labels = sol.labels;
-
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      const r = labels[idx];
-      if (r < 0) continue;
-      const p = screenFromWorld(ox + i * cellSize, oy + j * cellSize);
-      ctx.fillStyle = rooms[r] ? rooms[r].color : '#888';
-      ctx.fillRect(p.x, p.y, s + 0.6, s + 0.6);
-    }
-  }
-
-  // interior walls: boundaries between differently-labelled cells
-  ctx.strokeStyle = 'rgba(20,22,26,0.9)';
-  ctx.lineWidth = Math.max(1.25, editor.camera.scale * 0.08);
-  ctx.beginPath();
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      const r = labels[idx];
-      if (r < 0) continue;
-      if (i < W - 1) {
-        const o = labels[idx + 1];
-        if (o >= 0 && o !== r) {
-          const a = screenFromWorld(ox + (i + 1) * cellSize, oy + j * cellSize);
-          const b = screenFromWorld(ox + (i + 1) * cellSize, oy + (j + 1) * cellSize);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        }
-      }
-      if (j < H - 1) {
-        const o = labels[idx + W];
-        if (o >= 0 && o !== r) {
-          const a = screenFromWorld(ox + i * cellSize, oy + (j + 1) * cellSize);
-          const b = screenFromWorld(ox + (i + 1) * cellSize, oy + (j + 1) * cellSize);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        }
-      }
-    }
-  }
-  ctx.stroke();
+  drawPlan(ctx, sol, grid, state.program.rooms,
+    (x, y) => screenFromWorld(x, y), editor.camera.scale,
+    { furniture: state.showFurniture });
 }
 
 function drawRoomLabels(ctx, sol) {
@@ -365,74 +325,19 @@ function isInsideEnvelope(p) {
 
 // ---------- offscreen rendering (thumbnails / compare) ----------
 
-export function renderSolutionToCanvas(canvas, sol, grid, rooms, { showLabels = false } = {}) {
+export function renderSolutionToCanvas(canvas, sol, grid, rooms, { showLabels = false, furniture = true } = {}) {
   const ctx = canvas.getContext('2d');
   const { W, H, ox, oy, cellSize } = grid;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const pad = 6;
+  const pad = 8;
   const scale = Math.min((canvas.width - pad * 2) / (W * cellSize), (canvas.height - pad * 2) / (H * cellSize));
   const tx = (canvas.width - W * cellSize * scale) / 2;
   const ty = (canvas.height - H * cellSize * scale) / 2;
   const P = (x, y) => ({ x: tx + (x - ox) * scale, y: ty + (y - oy) * scale });
-  const s = cellSize * scale;
 
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      const r = sol.labels[idx];
-      const kind = grid.kinds[idx];
-      if (r < 0 && kind !== 2) continue;
-      const p = P(ox + i * cellSize, oy + j * cellSize);
-      ctx.fillStyle = kind === 2 ? COLOR_CORE : (rooms[r] ? rooms[r].color : '#999');
-      ctx.fillRect(p.x, p.y, s + 0.5, s + 0.5);
-    }
-  }
-
-  // walls
-  ctx.strokeStyle = 'rgba(25,28,33,0.85)';
-  ctx.lineWidth = Math.max(0.75, s * 0.16);
-  ctx.beginPath();
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      const r = sol.labels[idx];
-      if (r < 0) continue;
-      if (i < W - 1) {
-        const o = sol.labels[idx + 1];
-        if (o !== r && o >= 0) {
-          const a = P(ox + (i + 1) * cellSize, oy + j * cellSize);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, a.y + s);
-        }
-      }
-      if (j < H - 1) {
-        const o = sol.labels[idx + W];
-        if (o !== r && o >= 0) {
-          const a = P(ox + i * cellSize, oy + (j + 1) * cellSize);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + s, a.y);
-        }
-      }
-    }
-  }
-  ctx.stroke();
-
-  // outer boundary: edges between assigned/core and outside
-  ctx.strokeStyle = '#191c21';
-  ctx.lineWidth = Math.max(1.25, s * 0.3);
-  ctx.beginPath();
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      if (grid.kinds[idx] === 0) continue;
-      const a = P(ox + i * cellSize, oy + j * cellSize);
-      if (i === 0 || grid.kinds[idx - 1] === 0) { ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, a.y + s); }
-      if (i === W - 1 || grid.kinds[idx + 1] === 0) { ctx.moveTo(a.x + s, a.y); ctx.lineTo(a.x + s, a.y + s); }
-      if (j === 0 || grid.kinds[idx - W] === 0) { ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + s, a.y); }
-      if (j === H - 1 || grid.kinds[idx + W] === 0) { ctx.moveTo(a.x, a.y + s); ctx.lineTo(a.x + s, a.y + s); }
-    }
-  }
-  ctx.stroke();
+  drawPlan(ctx, sol, grid, rooms, P, scale, { furniture });
 
   if (showLabels) {
     ctx.textAlign = 'center';

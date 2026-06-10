@@ -1,8 +1,12 @@
-// App bootstrap: default scene, solver worker wiring, render loop.
+// App bootstrap: default scene, solver worker wiring, render loop (2D/3D).
 import { state } from './state.js';
 import { initEditor, fitView } from './editor.js';
 import { renderScene } from './render.js';
-import { initUI, updateAlternatives, updateStats } from './ui.js';
+import { setSymbolCatalog } from './render-plan.js';
+import { initUI, initPages, updateAlternatives, updateStats } from './ui.js';
+import { initView3D, renderView3D } from './view3d.js';
+import { buildCatalog } from './model/families.js';
+import { listCustomFamilies } from './store.js';
 
 // ---------- default scene so the app is alive immediately ----------
 
@@ -12,13 +16,20 @@ state.envelope = [
 ];
 state.cores = [{ x: 8.5, y: 4.5, w: 2.5, h: 3.5 }];
 state.entrance = { x: 11, y: 12.5 };
+state.customFamilies = listCustomFamilies();
 
 // ---------- editor + UI ----------
 
 const canvas = document.getElementById('canvas');
+const canvas3d = document.getElementById('canvas3d');
 initEditor(canvas);
 initUI();
+initPages();
+initView3D(canvas3d);
 fitView();
+
+let catalog = buildCatalog(state.customFamilies);
+setSymbolCatalog(catalog);
 
 // ---------- solver worker ----------
 
@@ -32,6 +43,7 @@ function pushSetup() {
     entrance: state.entrance,
     program: state.program,
     weights: state.weights,
+    families: state.customFamilies,
     cellSize: state.cellSize,
   });
 }
@@ -61,6 +73,11 @@ state.events.on('geometry', () => {
   updateStats();
 });
 state.events.on('program', pushSetupDebounced);
+state.events.on('families', () => {
+  catalog = buildCatalog(state.customFamilies);
+  setSymbolCatalog(catalog);
+  pushSetupDebounced();
+});
 state.events.on('weights', () => worker.postMessage({ type: 'weights', weights: state.weights }));
 state.events.on('evolve', (genome) => worker.postMessage({ type: 'focus', genome }));
 state.events.on('restart', () => worker.postMessage({ type: 'restart' }));
@@ -72,7 +89,11 @@ pushSetup();
 // ---------- render loop ----------
 
 function frame() {
-  renderScene(canvas);
+  if (state.view === '3d') {
+    renderView3D(canvas3d, state.solutions[state.selectedAlt], state.grid, state.program.rooms, catalog);
+  } else {
+    renderScene(canvas);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

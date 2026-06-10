@@ -82,33 +82,44 @@ export function decodeGenome(genome, grid, capacities) {
   const heap = new MinHeap();
 
   // Seed rooms on distinct cells (nearest free interior cell to the gene).
+  const seedI = new Int32Array(R), seedJ = new Int32Array(R);
   const taken = new Set();
   for (let r = 0; r < R; r++) {
     const cell = nearestInsideCell(grid, genome[r].x, genome[r].y, taken);
     if (cell < 0) continue;
     taken.add(cell);
+    seedI[r] = cell % W;
+    seedJ[r] = (cell / W) | 0;
     heap.push(r * 1e-7, cell, r); // tiny deterministic tie-break by room order
   }
 
+  // Priority = weighted Chebyshev distance from the room seed (Chebyshev
+  // balls are squares, so contested boundaries come out axis-aligned and
+  // buildable), inflated once the room exceeds its target area. Growth is
+  // still restricted to orthogonally adjacent cells, so rooms stay
+  // contiguous and flow around cores.
+  const priority = (room, i, j) => {
+    const cheb = Math.max(Math.abs(i - seedI[room]), Math.abs(j - seedJ[room]));
+    const manh = Math.abs(i - seedI[room]) + Math.abs(j - seedJ[room]);
+    const cap = Math.max(1, capacities[room]);
+    const over = sizes[room] / cap;
+    const overPenalty = over <= 1 ? 1 : 1 + 6 * (over - 1) * (over - 1);
+    // small Manhattan term breaks Chebyshev ties to keep corners square
+    return ((cheb + 0.01 * manh) / genome[room].w) * overPenalty + room * 1e-7;
+  };
+
   while (heap.size > 0) {
-    const { cost, cell, room } = heap.pop();
+    const { cell, room } = heap.pop();
     if (labels[cell] !== -1) continue;
     labels[cell] = room;
     sizes[room]++;
 
-    // Step cost: inverse growth weight, inflated once the room is over target
-    // so under-filled rooms win contested cells.
-    const cap = Math.max(1, capacities[room]);
-    const over = sizes[room] / cap;
-    const overPenalty = over <= 1 ? 1 : 1 + 6 * (over - 1) * (over - 1);
-    const step = (1 / genome[room].w) * overPenalty;
-
     const i = cell % W;
     const j = (cell / W) | 0;
-    if (i > 0 && kinds[cell - 1] === INSIDE && labels[cell - 1] === -1) heap.push(cost + step, cell - 1, room);
-    if (i < W - 1 && kinds[cell + 1] === INSIDE && labels[cell + 1] === -1) heap.push(cost + step, cell + 1, room);
-    if (j > 0 && kinds[cell - W] === INSIDE && labels[cell - W] === -1) heap.push(cost + step, cell - W, room);
-    if (j < H - 1 && kinds[cell + W] === INSIDE && labels[cell + W] === -1) heap.push(cost + step, cell + W, room);
+    if (i > 0 && kinds[cell - 1] === INSIDE && labels[cell - 1] === -1) heap.push(priority(room, i - 1, j), cell - 1, room);
+    if (i < W - 1 && kinds[cell + 1] === INSIDE && labels[cell + 1] === -1) heap.push(priority(room, i + 1, j), cell + 1, room);
+    if (j > 0 && kinds[cell - W] === INSIDE && labels[cell - W] === -1) heap.push(priority(room, i, j - 1), cell - W, room);
+    if (j < H - 1 && kinds[cell + W] === INSIDE && labels[cell + W] === -1) heap.push(priority(room, i, j + 1), cell + W, room);
   }
 
   return { labels, sizes };
