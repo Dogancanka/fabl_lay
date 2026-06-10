@@ -198,3 +198,25 @@ export function roomWallRuns(walls, room) {
   runs.sort((a, b) => b.wall.len - a.wall.len);
   return runs;
 }
+
+/**
+ * World-space rect of a wall's poché band. Exterior walls sit fully inward
+ * of the envelope line; interior and core walls are centered on it.
+ */
+export function wallRect(w) {
+  const t = w.thickness;
+  if (w.horizontal) {
+    // sideA is above (smaller y)
+    let y0 = w.y1 - t / 2;
+    if (w.type === 'exterior') y0 = w.sideB === SIDE_OUT ? w.y1 - t : w.y1; // inward
+    return { x: w.x1 - 0.05, y: y0, w: w.x2 - w.x1 + 0.1, h: t };
+  }
+  let x0 = w.x1 - t / 2;
+  if (w.type === 'exterior') x0 = w.sideB === SIDE_OUT ? w.x1 - t : w.x1;
+  return { x: x0, y: w.y1 - 0.05, w: t, h: w.y2 - w.y1 + 0.1 };
+}
+
+/** Offset from the wall centerline to its inner face on the given room side. */
+export function wallFaceInset(w) {
+  return w.type === 'exterior' ? w.thickness : w.thickness / 2;
+}

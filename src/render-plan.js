@@ -3,6 +3,9 @@
 // swings, window symbols and furniture symbols from the synthesized plan.
 // All drawing goes through P(x, y) -> screen point and `s` (px per meter).
 
+import { wallRect } from './solver/walls.js';
+export { wallRect };
+
 const WALL_COLOR = '#23262c';
 const PAPER = '#ffffff';
 
@@ -15,52 +18,43 @@ export function lighten(hex, amt = 0.5) {
 
 export function drawPlan(ctx, sol, grid, rooms, P, s, opts = {}) {
   const { W, H, ox, oy, cellSize: cs } = grid;
-  const floorAlpha = opts.dark ? 0.5 : 1;
+  const hidden = opts.hiddenFamilies;
 
   // --- floor tints from the straightened cell labels
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const idx = j * W + i;
-      const r = sol.labels[idx];
-      const kind = grid.kinds[idx];
-      if (r < 0 && kind !== 2) continue;
-      const p = P(ox + i * cs, oy + j * cs);
-      ctx.globalAlpha = floorAlpha;
-      ctx.fillStyle = kind === 2 ? '#565d6b' : lighten(rooms[r]?.color || '#999', 0.55);
-      ctx.fillRect(p.x, p.y, cs * s + 0.6, cs * s + 0.6);
-      ctx.globalAlpha = 1;
+  if (opts.rooms !== false) {
+    for (let j = 0; j < H; j++) {
+      for (let i = 0; i < W; i++) {
+        const idx = j * W + i;
+        const r = sol.labels[idx];
+        const kind = grid.kinds[idx];
+        if (r < 0 && kind !== 2) continue;
+        const p = P(ox + i * cs, oy + j * cs);
+        ctx.fillStyle = kind === 2 ? '#565d6b' : lighten(rooms[r]?.color || '#999', 0.55);
+        ctx.fillRect(p.x, p.y, cs * s + 0.6, cs * s + 0.6);
+      }
     }
   }
 
   // --- walls with thickness (exterior drawn inward, interior centered)
-  ctx.fillStyle = WALL_COLOR;
-  for (const w of sol.walls || []) {
-    const rect = wallRect(w);
-    const a = P(rect.x, rect.y);
-    ctx.fillRect(a.x, a.y, rect.w * s, rect.h * s);
+  if (opts.walls !== false) {
+    ctx.fillStyle = WALL_COLOR;
+    for (const w of sol.walls || []) {
+      const rect = wallRect(w);
+      const a = P(rect.x, rect.y);
+      ctx.fillRect(a.x, a.y, rect.w * s, rect.h * s);
+    }
+    // openings: erase the wall, then draw the symbol
+    if (opts.doors !== false) for (const d of sol.doors || []) drawDoor(ctx, d, P, s);
+    if (opts.windows !== false) for (const win of sol.windows || []) drawWindow(ctx, win, P, s);
   }
-
-  // --- openings: erase the wall, then draw the symbol
-  for (const d of sol.doors || []) drawDoor(ctx, d, P, s);
-  for (const win of sol.windows || []) drawWindow(ctx, win, P, s);
 
   // --- furniture
   if (opts.furniture !== false) {
-    for (const f of sol.furniture || []) drawFurniture(ctx, f, P, s);
+    for (const f of sol.furniture || []) {
+      if (hidden && hidden.has(f.familyId)) continue;
+      drawFurniture(ctx, f, P, s);
+    }
   }
-}
-
-export function wallRect(w) {
-  const t = w.thickness;
-  if (w.horizontal) {
-    // sideA is above (smaller y)
-    let y0 = w.y1 - t / 2;
-    if (w.type === 'exterior') y0 = w.sideB === -1 ? w.y1 - t : w.y1; // inward
-    return { x: w.x1 - 0.05, y: y0, w: w.x2 - w.x1 + 0.1, h: t };
-  }
-  let x0 = w.x1 - t / 2;
-  if (w.type === 'exterior') x0 = w.sideB === -1 ? w.x1 - t : w.x1;
-  return { x: x0, y: w.y1 - 0.05, w: t, h: w.y2 - w.y1 + 0.1 };
 }
 
 function openingSpanRect(o) {

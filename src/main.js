@@ -91,6 +91,7 @@ state.events.on('families', () => {
   setSymbolCatalog(catalog);
   pushSetupDebounced();
 });
+state.events.on('layers', () => invalidateScene());
 state.events.on('weights', () => worker.postMessage({ type: 'weights', weights: state.weights }));
 state.events.on('evolve', (genome) => worker.postMessage({ type: 'focus', genome }));
 state.events.on('generate', (count) => worker.postMessage({ type: 'generate', count }));

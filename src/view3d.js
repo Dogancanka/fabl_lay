@@ -4,6 +4,7 @@
 // algorithm on Canvas 2D. One finger/mouse orbits, wheel or pinch zooms.
 import { wallRect, lighten } from './render-plan.js';
 import { WALL_HEIGHT, DOOR_HEIGHT, WINDOW_SILL, WINDOW_HEAD } from './solver/walls.js';
+import { state } from './state.js';
 
 export const cam3d = { yaw: 0.7, pitch: 1.05, zoom: 28, panX: 0, panY: 40 };
 
@@ -158,10 +159,13 @@ function buildScene(sol, grid, rooms, catalog) {
     }
   }
 
-  // furniture volumes
-  for (const f of sol.furniture || []) {
-    const fam = catalog.get(f.familyId);
-    addBox(faces, f.rect, 0, fam ? fam.h : 0.7, fam ? fam.color : '#c9c9c9', '#3c424c');
+  // furniture volumes (honoring the layer tree)
+  if (state.layers.furniture) {
+    for (const f of sol.furniture || []) {
+      if (state.hiddenFamilies.has(f.familyId)) continue;
+      const fam = catalog.get(f.familyId);
+      addBox(faces, f.rect, 0, fam ? fam.h : 0.7, fam ? fam.color : '#c9c9c9', '#3c424c');
+    }
   }
 
   // scene center for orbiting

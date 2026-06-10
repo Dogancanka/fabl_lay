@@ -33,10 +33,18 @@ export const state = {
   compareSet: new Set(), // indices ticked for comparison
   paused: false,
 
-  // view options
-  showGraph: false,
-  showDims: true,
-  showFurniture: true,
+  // view options: element visibility, grouped like a layer tree
+  layers: {
+    rooms: true,       // floor tints
+    walls: true,
+    doors: true,
+    windows: true,
+    furniture: true,
+    labels: true,      // room names + areas
+    dims: true,        // envelope edge dimensions
+    graph: false,      // adjacency graph overlay
+  },
+  hiddenFamilies: new Set(),  // furniture family ids toggled off individually
   view: '2d',            // '2d' | '3d'
   page: 'plans',         // 'projects' | 'plans' | 'objects'
   customFamilies: [],    // user-imported families (JSON)

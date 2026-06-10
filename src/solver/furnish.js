@@ -4,7 +4,7 @@
 import { INSIDE } from './grid.js';
 import { ROOM_TYPES } from '../program.js';
 import { openingRect } from './openings.js';
-import { roomWallRuns } from './walls.js';
+import { roomWallRuns, wallRect, wallFaceInset } from './walls.js';
 
 const STEP = 0.3; // candidate spacing along walls, m
 
@@ -33,6 +33,9 @@ export function furnish(labels, grid, rooms, walls, doors, windows, catalog) {
       room: r, labels, grid, rooms,
       runs: roomWallRuns(walls, r),
       doorZones,
+      wallRects: walls
+        .filter((w) => w.sideA === r || w.sideB === r)
+        .map((w) => wallRect(w)),
       windows: windows.filter((w) => w.room === r),
       solids: [],      // placed furniture rects
       clearzones: [],  // their required front clearances
@@ -70,12 +73,13 @@ function placeFamily(fam, ctx) {
       if (s > bestScore && validPose(fam, c, ctx)) { bestScore = s; best = c; }
     }
   } else {
+    const endGap = fam.endGap ?? 0.05;
     for (const run of ctx.runs) {
       const L = run.wall.len;
-      if (L < fam.w + 0.1) continue;
+      if (L < fam.w + 2 * endGap) continue;
       const positions = fam.placement === 'corner'
-        ? [0.05, L - fam.w - 0.05]
-        : rangePositions(L, fam.w);
+        ? [endGap, L - fam.w - endGap]
+        : rangePositions(L, fam.w, endGap);
       for (const t of positions) {
         if (t < 0) continue;
         const c = poseOnRun(run, t, fam);
@@ -95,16 +99,17 @@ function placeFamily(fam, ctx) {
   return item;
 }
 
-function rangePositions(L, w) {
+function rangePositions(L, w, endGap = 0.05) {
   const out = [];
-  for (let t = 0.05; t <= L - w - 0.05; t += STEP) out.push(t);
+  for (let t = endGap; t <= L - w - endGap; t += STEP) out.push(t);
   return out;
 }
 
-/** Pose for family back against a wall run at offset t. */
+/** Pose for family back against a wall run at offset t (at the wall's inner
+ *  face plus the family's optional wallGap). */
 function poseOnRun(run, t, fam) {
   const w = run.wall;
-  const inset = w.thickness / 2;
+  const inset = wallFaceInset(w) + (fam.wallGap || 0);
   let rect;
   if (w.horizontal) {
     const y = run.ny > 0 ? w.y1 + inset : w.y1 - inset - fam.d;
@@ -157,18 +162,42 @@ function frontRect(pose, depth) {
   return { x: r.x - depth, y: r.y, w: depth, h: r.h };
 }
 
-function sideRect(pose, side) {
+/** The two strips beside the item along its wall axis (free-space-at-sides rule). */
+function sideStrips(pose, side) {
   const r = pose.rect, f = pose.facing;
-  if (side <= 0) return null;
-  if (f.ny !== 0) return { x: r.x - side, y: r.y, w: r.w + 2 * side, h: r.h };
-  return { x: r.x, y: r.y - side, w: r.w, h: r.h + 2 * side };
+  if (side <= 0) return [];
+  if (f.ny !== 0) {
+    return [
+      { x: r.x - side, y: r.y, w: side, h: r.h },
+      { x: r.x + r.w, y: r.y, w: side, h: r.h },
+    ];
+  }
+  return [
+    { x: r.x, y: r.y - side, w: r.w, h: side },
+    { x: r.x, y: r.y + r.h, w: r.w, h: side },
+  ];
 }
 
 function validPose(fam, pose, ctx) {
   const r = pose.rect;
   if (!rectInRoom(r, ctx)) return false;
   const fr = frontRect(pose, fam.clearFront);
-  const sr = sideRect(pose, fam.clearSide);
+  const strips = sideStrips(pose, fam.clearSide);
+
+  // never intersect the wall poché itself (exterior walls sit inward of the
+  // line); required side gaps must be wall-free too — no jamming into corners
+  for (const wr of ctx.wallRects) {
+    if (overlap(r, wr)) return false;
+    for (const strip of strips) {
+      if (overlap(strip, wr)) return false;
+    }
+  }
+  // required free space must lie inside the room (keeps beds out of corners,
+  // passage in front of wardrobes, etc.)
+  if (fr && fam.clearFront > 0.05 && !rectInRoom(shrink(fr, 0.02), ctx)) return false;
+  for (const strip of strips) {
+    if (!rectInRoom(shrink(strip, 0.02), ctx)) return false;
+  }
 
   for (const z of ctx.doorZones) {
     if (overlap(r, z)) return false;             // never block a door
@@ -177,7 +206,9 @@ function validPose(fam, pose, ctx) {
   for (const s of ctx.solids) {
     if (overlap(r, s)) return false;
     if (fr && overlap(fr, s)) return false;
-    if (sr && overlap(sr, s)) return false;
+    for (const strip of strips) {
+      if (overlap(strip, s)) return false;
+    }
   }
   for (const c of ctx.clearzones) {
     if (overlap(r, c)) return false;             // don't sit in others' clearance
@@ -189,6 +220,10 @@ function validPose(fam, pose, ctx) {
     }
   }
   return true;
+}
+
+function shrink(r, by) {
+  return { x: r.x + by, y: r.y + by, w: Math.max(0.01, r.w - 2 * by), h: Math.max(0.01, r.h - 2 * by) };
 }
 
 function rectInRoom(r, ctx) {
@@ -274,7 +309,7 @@ function placeKitchenRun(fam, ctx) {
 
   for (const run of runs) {
     const L = Math.min(run.wall.len - 0.1, Math.max(need, 1.8));
-    const pose = poseOnRun(run, Math.max(0.05, (run.wall.len - L) / 2), { w: L, d: fam.d });
+    const pose = poseOnRun(run, Math.max(0.05, (run.wall.len - L) / 2), { ...fam, w: L });
     pose.rect = run.wall.horizontal
       ? { ...pose.rect, w: L, h: fam.d }
       : { ...pose.rect, w: fam.d, h: L };
