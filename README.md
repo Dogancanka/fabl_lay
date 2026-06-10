@@ -8,6 +8,24 @@ boundaries are modified, the layout adapts in real time while preserving design
 intent. Multiple ranked alternatives can be explored, compared, and evolved
 interactively.
 
+Beyond colored room fields, the app synthesizes **real architectural plans**:
+
+- **Walls** with actual thickness, classified exterior / interior / core
+- **Doors as rule objects** — each knows its wall, the two rooms it connects,
+  its swing side and the clearance it requires; required adjacencies that
+  aren't on the circulation tree become wide cased openings
+- **Windows as rule objects** — sized from a glazing target (~12 % of floor
+  area), placed on the room's facade runs, away from corners and the entrance
+- **Furniture families with metadata** — beds, wardrobes, sofa/TV pairs,
+  dining tables, kitchen runs with sink/hob/fridge work zones, toilets, basins,
+  showers, desks. The auto-furnisher places them from room type, walls,
+  clearances and snap rules (toilets snap to wet walls, tall items avoid
+  windows, nothing blocks a door swing). Custom families can be imported as
+  JSON under **Objects**
+- **3D validation view** — dependency-free axonometric rendering of walls at
+  real height with door/window openings, room volumes and furniture
+- **Projects / Plans / Objects** structure with a local project library
+
 ![FABL Lay](docs/screenshot-main.png)
 
 ## Run it
@@ -76,6 +94,8 @@ achieved connections. **Dims** (`D`) toggles edge dimensions, **Pause**
 
 ![Compare view](docs/screenshot-compare.png)
 
+![3D validation view](docs/screenshot-3d.png)
+
 ## How it works
 
 Everything heavy runs in a **Web Worker**, streaming the top-K distinct
@@ -85,32 +105,37 @@ solutions to the UI ~6×/second while the canvas stays at 60 fps.
    are rasterized into a 0.5 m cell grid; facade cells and core-adjacent cells
    are precomputed.
 2. **Genome** (`src/solver/genome.js`) — one seed point + growth weight per
-   room. Decoding performs *capacity-constrained multi-source region growing*:
-   all rooms flood outward from their seeds through a shared priority queue,
-   and expansion gets progressively more expensive once a room exceeds its
-   target cell count. The result is always a full, contiguous partition of the
-   floor whose areas track the program.
-3. **Fitness** (`src/solver/fitness.js`) — each decoded layout is scored 0–100
-   on five normalized criteria: area-target deviation, adjacency-rule
-   satisfaction (a pair counts as connected only with enough shared wall for a
-   door), daylight (rooms flagged ☀ must touch the facade), compactness
-   (bounding-box fill + aspect ratio), and circulation (every room must be
-   reachable from the hall in the room-connectivity graph; the hall must touch
-   the core / entrance).
-4. **Evolution** (`src/solver/worker.js`) — a steady-state genetic algorithm
+   room. Decoding performs capacity-constrained multi-source region growing
+   prioritized by *weighted Chebyshev distance* (Chebyshev balls are squares,
+   so contested room boundaries come out axis-aligned and buildable).
+3. **GA fitness** (`src/solver/fitness.js`) — area targets, adjacency rules
+   (door-able shared wall), daylight, compactness, circulation reachability
+   and construction logic (corner/junction density of interior walls).
+4. **Evolution** (`src/solver/worker.js`) — steady-state genetic algorithm
    (population 48, elitism, tournament selection, crossover, gaussian seed
-   mutation, room-swap mutation, random immigrants) runs forever in the
-   background. The ranked alternatives are the best individuals filtered for
-   mutual visual distinctness (≥ 12 % of cells assigned differently).
-5. **Design-intent preservation** — on any envelope/core/program edit the
-   worker re-rasterizes, remaps elite genomes by room id, clamps seeds into the
-   new geometry, and continues evolving from there.
+   mutation, room swaps, random immigrants), running forever. On any
+   envelope/core/program edit the worker re-rasterizes, remaps elite genomes
+   by room id and continues evolving — design intent is preserved.
+5. **Architectural synthesis** (`src/solver/synthesize.js`) — each presented
+   alternative is turned into a buildable plan: boundary relaxation straightens
+   walls (`walls.js`), wall segments are extracted with thickness and
+   classification, doors are placed on a BFS circulation tree from the hall
+   (`openings.js`), windows on facade runs, and furniture via the rule-based
+   auto-furnisher (`furnish.js`) using the family catalog
+   (`src/model/families.js`). Synthesis adds the **furnishability** and
+   **accessibility** criteria, and the combined 8-criterion score determines
+   the final ranking. The compare view explains *why* one alternative ranks
+   above another.
+6. **Rendering** — `src/render-plan.js` draws the architectural 2D plan
+   (poché walls, door swings, window symbols, furniture symbols);
+   `src/view3d.js` renders the dependency-free axonometric 3D view with a
+   painter's algorithm.
 
 ## Development
 
 ```sh
-npm start                  # serve the app
-node test/engine-test.js   # headless smoke test of the layout engine
+npm start    # serve the app
+npm test     # headless engine + synthesis smoke tests
 ```
 
 No frameworks, no dependencies — plain ES modules (`src/`), Canvas 2D

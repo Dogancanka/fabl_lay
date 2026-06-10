@@ -10,6 +10,9 @@ import {
   clampToGrid, labelDifference, makeRng,
 } from './genome.js';
 import { evaluate } from './fitness.js';
+import { synthesize } from './synthesize.js';
+import { buildCatalog } from '../model/families.js';
+import { combinedScore } from '../program.js';
 
 const POP_SIZE = 48;
 const ELITES = 6;
@@ -84,6 +87,7 @@ function handleSetup(msg) {
     hasCore: (cores || []).length > 0,
     hasEntrance: !!entrance,
     entrance,
+    catalog: buildCatalog(msg.families || []),
   };
 
   // Preserve design intent: carry elite genomes across the geometry/program
@@ -248,19 +252,29 @@ function postSolutions(force = false) {
 
   const g = ctx.grid;
   const transfers = [];
+  // Architectural synthesis of the presented alternatives: straightened
+  // walls, doors, windows, furniture + the synthesis-level criteria. The
+  // combined score (GA + synthesis) determines the final ranking.
   const solutions = picked.map((ind) => {
-    const labels = ind.labels.slice();
-    transfers.push(labels.buffer);
+    const plan = synthesize(ind.labels, ctx);
+    const breakdown = { ...ind.breakdown, ...plan.ext };
+    transfers.push(plan.labels.buffer);
     return {
       genome: ind.genome.map((s) => ({ ...s })),
-      score: ind.score,
-      breakdown: ind.breakdown,
-      areas: ind.areas,
-      centroids: ind.centroids,
+      score: combinedScore(breakdown, weights),
+      breakdown,
+      areas: plan.areas,
+      centroids: plan.centroids,
       connections: ind.connections,
-      labels,
+      labels: plan.labels,
+      walls: plan.walls,
+      doors: plan.doors,
+      windows: plan.windows,
+      furniture: plan.furniture,
+      issues: plan.issues,
     };
   });
+  solutions.sort((a, b) => b.score - a.score);
   const kinds = g.kinds.slice();
   transfers.push(kinds.buffer);
 

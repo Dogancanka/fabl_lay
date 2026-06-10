@@ -10,6 +10,12 @@
   <header id="topbar">
     <div class="brand">FABL<span>Lay</span></div>
 
+    <div class="toolgroup" id="nav">
+      <button class="nav-btn" data-page="projects">Projects</button>
+      <button class="nav-btn" data-page="plans">Plans</button>
+      <button class="nav-btn" data-page="objects">Objects</button>
+    </div>
+
     <div class="toolgroup" id="tools">
       <button class="tool" data-tool="select" title="Select / edit geometry (V)">Select</button>
       <button class="tool" data-tool="envelope" title="Sketch building envelope (E)">Envelope</button>
@@ -17,9 +23,15 @@
       <button class="tool" data-tool="entrance" title="Place entrance on envelope edge (N)">Entrance</button>
     </div>
 
+    <div class="toolgroup" id="views">
+      <button class="view-btn active" data-view="2d" title="Plan view">2D</button>
+      <button class="view-btn" data-view="3d" title="Axonometric validation view (3)">3D</button>
+    </div>
+
     <div class="toolgroup">
       <button class="toggle" id="toggle-graph" title="Show adjacency graph overlay (G)">Graph</button>
       <button class="toggle" id="toggle-dims" title="Show edge dimensions (D)">Dims</button>
+      <button class="toggle active" id="toggle-furniture" title="Show furniture (F)">Furn</button>
       <button class="toggle" id="toggle-pause" title="Pause / resume the optimizer (Space)">Pause</button>
     </div>
 
@@ -33,6 +45,7 @@
   <main id="layout">
     <div id="canvas-wrap">
       <canvas id="canvas"></canvas>
+      <canvas id="canvas3d" class="hidden"></canvas>
       <div id="hint"></div>
     </div>
 
@@ -64,7 +77,42 @@
         <div id="alt-grid"></div>
         <button id="btn-compare" class="wide" disabled>Compare selected pair</button>
       </section>
+
+      <section class="panel-section" id="sec-issues">
+        <h2>Plan check</h2>
+        <ul id="issue-list"></ul>
+      </section>
     </aside>
+
+    <div id="page-projects" class="page hidden">
+      <div class="page-inner">
+        <header class="page-head">
+          <h1>Projects</h1>
+          <button id="btn-save-project" class="primary">Save current plan as project</button>
+        </header>
+        <div id="project-grid"></div>
+      </div>
+    </div>
+
+    <div id="page-objects" class="page hidden">
+      <div class="page-inner">
+        <header class="page-head">
+          <h1>Objects</h1>
+          <button id="btn-import-family" class="primary">Import families (JSON)</button>
+          <button id="btn-export-families">Export</button>
+        </header>
+        <p class="help">Families are the placeable building objects. Each carries its size, height,
+          placement mode, clearances and snap preferences (wet wall, window, faces:&lt;id&gt;…).
+          Imported families are used by the auto-furnisher immediately.</p>
+        <textarea id="family-json" class="hidden" rows="8"
+          placeholder='[{"id":"piano","name":"Grand piano","w":1.5,"d":1.8,"h":1.0,"placement":"free","clearFront":1.2,"roomTypes":["living"],"symbol":"generic","color":"#888888"}]'></textarea>
+        <div id="family-import-actions" class="hidden">
+          <button id="btn-confirm-import" class="primary">Add families</button>
+          <span id="import-error"></span>
+        </div>
+        <div id="family-grid"></div>
+      </div>
+    </div>
   </main>
 
   <div id="compare-modal" class="hidden">

@@ -135,12 +135,33 @@ export function evaluate(labels, sizes, ctx, weights) {
     circPen = Math.min(1, circPen);
   }
 
+  // --- construction logic: corner/junction density of interior walls.
+  // Straight continuous walls are buildable; staircase walls are not.
+  let corners = 0, wallEdges = 0;
+  const { W: gw, H: gh } = grid;
+  const lab = (i, j) => (i < 0 || j < 0 || i >= gw || j >= gh) ? -1 : labels[j * gw + i];
+  const interiorEdgeV = (i, j) => { const a = lab(i - 1, j), b = lab(i, j); return a >= 0 && b >= 0 && a !== b; };
+  const interiorEdgeH = (i, j) => { const a = lab(i, j - 1), b = lab(i, j); return a >= 0 && b >= 0 && a !== b; };
+  for (let j = 0; j <= gh; j++) {
+    for (let i = 0; i <= gw; i++) {
+      const up = j > 0 && interiorEdgeV(i, j - 1);
+      const down = j < gh && interiorEdgeV(i, j);
+      const left = i > 0 && interiorEdgeH(i - 1, j);
+      const right = i < gw && interiorEdgeH(i, j);
+      const n = up + down + left + right;
+      if (up || down) wallEdges++;
+      if (n >= 2 && !((up && down && n === 2) || (left && right && n === 2))) corners++;
+    }
+  }
+  const constructionPen = Math.min(1, (corners / Math.max(1, wallEdges)) * 2);
+
   const breakdown = {
     area: 1 - areaPen,
     adjacency: 1 - adjPen,
     daylight: 1 - dayPen,
     compactness: 1 - compPen,
     circulation: 1 - circPen,
+    construction: 1 - constructionPen,
   };
 
   let weighted = 0, totalW = 0;
